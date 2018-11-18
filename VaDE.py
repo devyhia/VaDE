@@ -223,6 +223,7 @@ if db in ['mnist','reuters10k','har']:
     dataset = db
 print ('training on: ' + dataset)
 ispretrain = True
+ispretrain = False
 batch_size = 100
 latent_dim = 10
 intermediate_dim = [500,500,2000]
