@@ -1,0 +1,1 @@
+KERAS_BACKEND=theano python VaDE.py --dataset mnist --pretrain-weights dec-pre-weights/ae_weights_mnist_28.h5

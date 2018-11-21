@@ -72,7 +72,11 @@ def load_data(dataset):
         x_test = x_test.reshape((len(x_test), np.prod(x_test.shape[1:])))
         X = np.concatenate((x_train,x_test))
         Y = np.concatenate((y_train,y_test))
-        
+
+    if dataset == 'coil20':
+        X = np.load(path+'coil20_features_28.npy')
+        Y = np.load(path+'coil20_labels_28.npy')
+    
     if dataset == 'reuters10k':
         data=scio.loadmat(path+'reuters10k.mat')
         X = data['X']
@@ -181,7 +185,7 @@ def load_pretrain_weights(vade,dataset,pretrain_weights=None):
     vade.layers[-3].set_weights(ae.layers[-3].get_weights())
     vade.layers[-4].set_weights(ae.layers[-4].get_weights())
     sample = sample_output.predict(X,batch_size=batch_size)
-    if dataset == 'mnist':
+    if dataset == 'mnist' or dataset == 'coil20':
         g = mixture.GMM(n_components=n_centroid,covariance_type='diag')
         g.fit(sample)
         u_p.set_value(floatX(g.means_.T))
@@ -199,7 +203,7 @@ def load_pretrain_weights(vade,dataset,pretrain_weights=None):
     return vade
 #===================================
 def lr_decay():
-    if dataset == 'mnist':
+    if dataset == 'mnist' or dataset == 'coil20':
         adam_nn.lr.set_value(floatX(max(adam_nn.lr.get_value()*decay_nn,0.0002)))
         adam_gmm.lr.set_value(floatX(max(adam_gmm.lr.get_value()*decay_gmm,0.0002)))
     else:
@@ -240,7 +244,7 @@ class EpochBegin(Callback):
 
 # Configurations
 parser = argparse.ArgumentParser('VaDE Training')
-parser.add_argument('--dataset', default='mnist', choices=['mnist','reuters10k','har'])
+parser.add_argument('--dataset', default='mnist', choices=['mnist','reuters10k','har', 'coil20'])
 parser.add_argument('--pretrain-weights', default=None, type=str)
 
 args = parser.parse_args()
