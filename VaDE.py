@@ -78,7 +78,7 @@ def load_data(dataset):
         X = X.astype('float32') / 255.
         X = X.reshape((-1, np.prod(X.shape[1:])))
         Y = np.load(path+'coil20_labels_28.npy')
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
     
     if dataset == 'reuters10k':
         data=scio.loadmat(path+'reuters10k.mat')
@@ -230,6 +230,7 @@ def epochBegin(epoch):
         u_p.set_value(floatX(g.means_.T))
         print ('no pretrain,random init!')
     '''
+    # import pdb; pdb.set_trace()
     gamma = gamma_output.predict(X,batch_size=batch_size)
     acc=cluster_acc(np.argmax(gamma,axis=1),Y)
     global accuracy
@@ -256,7 +257,7 @@ args = parser.parse_args()
 
 print ('training on: ' + args.dataset)
 ispretrain = True
-batch_size = 100
+batch_size = 40 if args.dataset == 'coil20' else 100
 latent_dim = 10
 intermediate_dim = [500,500,2000]
 theano.config.floatX='float32'
@@ -279,10 +280,12 @@ x_decoded_mean = Dense(original_dim, activation=datatype)(h_decoded)
 
 #========================
 Gamma = Lambda(get_gamma, output_shape=(n_centroid,))(z)
-sample_output = Model(x, z_mean)
-gamma_output = Model(x,Gamma)
+sample_output   = Model(x, z_mean)
+gamma_output    = Model(x,Gamma)
+vade            = Model(x, x_decoded_mean)
 #===========================================      
-vade = Model(x, x_decoded_mean)
+# import pdb; pdb.set_trace()
+#===========================================      
 if ispretrain == True:
     vade = load_pretrain_weights(vade,args.dataset, args.pretrain_weights)
 adam_nn= Adam(lr=lr_nn,epsilon=1e-4)
