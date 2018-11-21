@@ -27,6 +27,7 @@ import math
 from sklearn import mixture
 from sklearn.cluster import KMeans
 from keras.models import model_from_json
+import argparse
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -88,6 +89,23 @@ def load_data(dataset):
     return X,Y
 
 def config_init(dataset):
+    """
+    Return:
+        (original_dim, epoch, n_centroid, lr_nn, lr_gmm, decay_n, decay_nn, decay_gmm, alpha, datatype)
+    """
+    if dataset == 'coil20':
+        original_dim = 28 * 28
+        epoch = 3000
+        n_centroid = 20
+        lr_nn = 0.002
+        lr_gmm = 0.002
+        decay_n = 10
+        decay_nn = 0.9
+        decay_gmm = 0.9
+        alpha = 1
+        datatype = 'sigmoid'
+        
+        return original_dim, epoch, n_centroid, lr_nn, lr_gmm, decay_n, decay_nn, decay_gmm, alpha, datatype
     if dataset == 'mnist':
         return 784,3000,10,0.002,0.002,10,0.9,0.9,1,'sigmoid'
     if dataset == 'reuters10k':
@@ -147,9 +165,13 @@ def vae_loss(x, x_decoded_mean):
     return loss
 #================================
 
-def load_pretrain_weights(vade,dataset):
+def load_pretrain_weights(vade,dataset,pretrain_weights=None):
     ae = model_from_json(open('pretrain_weights/ae_'+dataset+'.json').read())
-    ae.load_weights('pretrain_weights/ae_'+dataset+'_weights.h5')
+    if pretrain_weights:
+        ae.load_weights(pretrain_weights)
+    else:
+        ae.load_weights('pretrain_weights/ae_'+dataset+'_weights.h5')
+
     vade.layers[1].set_weights(ae.layers[0].get_weights())
     vade.layers[2].set_weights(ae.layers[1].get_weights())
     vade.layers[3].set_weights(ae.layers[2].get_weights())
@@ -215,53 +237,58 @@ def epochBegin(epoch):
 class EpochBegin(Callback):
     def on_epoch_begin(self, epoch, logs={}):
         epochBegin(epoch)
+
+# Configurations
+parser = argparse.ArgumentParser('VaDE Training')
+parser.add_argument('--dataset', default='mnist', choices=['mnist','reuters10k','har'])
+parser.add_argument('--pretrain-weights', default=None, type=str)
+
+args = parser.parse_args()
+
 #==============================================
 
-dataset = 'mnist'
-db = sys.argv[1]
-if db in ['mnist','reuters10k','har']:
-    dataset = db
-print ('training on: ' + dataset)
+print ('training on: ' + args.dataset)
 ispretrain = True
-ispretrain = False
 batch_size = 100
 latent_dim = 10
 intermediate_dim = [500,500,2000]
 theano.config.floatX='float32'
 accuracy=[]
-X,Y = load_data(dataset)
-original_dim,epoch,n_centroid,lr_nn,lr_gmm,decay_n,decay_nn,decay_gmm,alpha,datatype = config_init(dataset)
+X,Y = load_data(args.dataset)
+original_dim,epoch,n_centroid,lr_nn,lr_gmm,decay_n,decay_nn,decay_gmm,alpha,datatype = config_init(args.dataset)
 theta_p,u_p,lambda_p = gmmpara_init()
 #===================
 
-x = Input(batch_shape=(batch_size, original_dim))
-h = Dense(intermediate_dim[0], activation='relu')(x)
-h = Dense(intermediate_dim[1], activation='relu')(h)
-h = Dense(intermediate_dim[2], activation='relu')(h)
-z_mean = Dense(latent_dim)(h)
-z_log_var = Dense(latent_dim)(h)
-z = Lambda(sampling, output_shape=(latent_dim,))([z_mean, z_log_var])
-h_decoded = Dense(intermediate_dim[-1], activation='relu')(z)
-h_decoded = Dense(intermediate_dim[-2], activation='relu')(h_decoded)
-h_decoded = Dense(intermediate_dim[-3], activation='relu')(h_decoded)
-x_decoded_mean = Dense(original_dim, activation=datatype)(h_decoded)
 
-#========================
-Gamma = Lambda(get_gamma, output_shape=(n_centroid,))(z)
-sample_output = Model(x, z_mean)
-gamma_output = Model(x,Gamma)
-#===========================================      
-vade = Model(x, x_decoded_mean)
-if ispretrain == True:
-    vade = load_pretrain_weights(vade,dataset)
-adam_nn= Adam(lr=lr_nn,epsilon=1e-4)
-adam_gmm= Adam(lr=lr_gmm,epsilon=1e-4)
-vade.compile(optimizer=adam_nn, loss=vae_loss,add_trainable_weights=[theta_p,u_p,lambda_p],add_optimizer=adam_gmm)
-epoch_begin=EpochBegin()
-#-------------------------------------------------------
+if __name__ == "__main__":
+    x = Input(batch_shape=(batch_size, original_dim))
+    h = Dense(intermediate_dim[0], activation='relu')(x)
+    h = Dense(intermediate_dim[1], activation='relu')(h)
+    h = Dense(intermediate_dim[2], activation='relu')(h)
+    z_mean = Dense(latent_dim)(h)
+    z_log_var = Dense(latent_dim)(h)
+    z = Lambda(sampling, output_shape=(latent_dim,))([z_mean, z_log_var])
+    h_decoded = Dense(intermediate_dim[-1], activation='relu')(z)
+    h_decoded = Dense(intermediate_dim[-2], activation='relu')(h_decoded)
+    h_decoded = Dense(intermediate_dim[-3], activation='relu')(h_decoded)
+    x_decoded_mean = Dense(original_dim, activation=datatype)(h_decoded)
 
-vade.fit(X, X,
-        shuffle=True,
-        nb_epoch=epoch,
-        batch_size=batch_size,   
-        callbacks=[epoch_begin])
+    #========================
+    Gamma = Lambda(get_gamma, output_shape=(n_centroid,))(z)
+    sample_output = Model(x, z_mean)
+    gamma_output = Model(x,Gamma)
+    #===========================================      
+    vade = Model(x, x_decoded_mean)
+    if ispretrain == True:
+        vade = load_pretrain_weights(vade,args.dataset, args.pretrain_weights)
+    adam_nn= Adam(lr=lr_nn,epsilon=1e-4)
+    adam_gmm= Adam(lr=lr_gmm,epsilon=1e-4)
+    vade.compile(optimizer=adam_nn, loss=vae_loss,add_trainable_weights=[theta_p,u_p,lambda_p],add_optimizer=adam_gmm)
+    epoch_begin=EpochBegin()
+    #-------------------------------------------------------
+
+    vade.fit(X, X,
+            shuffle=True,
+            nb_epoch=epoch,
+            batch_size=batch_size,   
+            callbacks=[epoch_begin])
