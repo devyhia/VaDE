@@ -75,7 +75,10 @@ def load_data(dataset):
 
     if dataset == 'coil20':
         X = np.load(path+'coil20_features_28.npy')
+        X = X.astype('float32') / 255.
+        X = X.reshape((-1, np.prod(X.shape[1:])))
         Y = np.load(path+'coil20_labels_28.npy')
+        import pdb; pdb.set_trace()
     
     if dataset == 'reuters10k':
         data=scio.loadmat(path+'reuters10k.mat')
