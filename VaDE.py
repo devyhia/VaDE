@@ -230,7 +230,7 @@ def epochBegin(epoch):
     if epoch>0 :
         #print ('acc_gmm_on_z:%0.8f'%acc_g[0])
         print ('acc_p_c_z:%0.8f'%acc[0])
-    if epoch==1 and dataset == 'har' and acc[0]<0.77:
+    if epoch==1 and args.dataset == 'har' and acc[0]<0.77:
         print ('=========== HAR dataset:bad init!Please run again! ============')
         sys.exit(0)
         
