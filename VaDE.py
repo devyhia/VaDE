@@ -265,37 +265,34 @@ X,Y = load_data(args.dataset)
 original_dim,epoch,n_centroid,lr_nn,lr_gmm,decay_n,decay_nn,decay_gmm,alpha,datatype = config_init(args.dataset)
 theta_p,u_p,lambda_p = gmmpara_init()
 #===================
+x = Input(batch_shape=(batch_size, original_dim))
+h = Dense(intermediate_dim[0], activation='relu')(x)
+h = Dense(intermediate_dim[1], activation='relu')(h)
+h = Dense(intermediate_dim[2], activation='relu')(h)
+z_mean = Dense(latent_dim)(h)
+z_log_var = Dense(latent_dim)(h)
+z = Lambda(sampling, output_shape=(latent_dim,))([z_mean, z_log_var])
+h_decoded = Dense(intermediate_dim[-1], activation='relu')(z)
+h_decoded = Dense(intermediate_dim[-2], activation='relu')(h_decoded)
+h_decoded = Dense(intermediate_dim[-3], activation='relu')(h_decoded)
+x_decoded_mean = Dense(original_dim, activation=datatype)(h_decoded)
 
+#========================
+Gamma = Lambda(get_gamma, output_shape=(n_centroid,))(z)
+sample_output = Model(x, z_mean)
+gamma_output = Model(x,Gamma)
+#===========================================      
+vade = Model(x, x_decoded_mean)
+if ispretrain == True:
+    vade = load_pretrain_weights(vade,args.dataset, args.pretrain_weights)
+adam_nn= Adam(lr=lr_nn,epsilon=1e-4)
+adam_gmm= Adam(lr=lr_gmm,epsilon=1e-4)
+vade.compile(optimizer=adam_nn, loss=vae_loss,add_trainable_weights=[theta_p,u_p,lambda_p],add_optimizer=adam_gmm)
+epoch_begin=EpochBegin()
+#-------------------------------------------------------
 
-if __name__ == "__main__":
-    x = Input(batch_shape=(batch_size, original_dim))
-    h = Dense(intermediate_dim[0], activation='relu')(x)
-    h = Dense(intermediate_dim[1], activation='relu')(h)
-    h = Dense(intermediate_dim[2], activation='relu')(h)
-    z_mean = Dense(latent_dim)(h)
-    z_log_var = Dense(latent_dim)(h)
-    z = Lambda(sampling, output_shape=(latent_dim,))([z_mean, z_log_var])
-    h_decoded = Dense(intermediate_dim[-1], activation='relu')(z)
-    h_decoded = Dense(intermediate_dim[-2], activation='relu')(h_decoded)
-    h_decoded = Dense(intermediate_dim[-3], activation='relu')(h_decoded)
-    x_decoded_mean = Dense(original_dim, activation=datatype)(h_decoded)
-
-    #========================
-    Gamma = Lambda(get_gamma, output_shape=(n_centroid,))(z)
-    sample_output = Model(x, z_mean)
-    gamma_output = Model(x,Gamma)
-    #===========================================      
-    vade = Model(x, x_decoded_mean)
-    if ispretrain == True:
-        vade = load_pretrain_weights(vade,args.dataset, args.pretrain_weights)
-    adam_nn= Adam(lr=lr_nn,epsilon=1e-4)
-    adam_gmm= Adam(lr=lr_gmm,epsilon=1e-4)
-    vade.compile(optimizer=adam_nn, loss=vae_loss,add_trainable_weights=[theta_p,u_p,lambda_p],add_optimizer=adam_gmm)
-    epoch_begin=EpochBegin()
-    #-------------------------------------------------------
-
-    vade.fit(X, X,
-            shuffle=True,
-            nb_epoch=epoch,
-            batch_size=batch_size,   
-            callbacks=[epoch_begin])
+vade.fit(X, X,
+        shuffle=True,
+        nb_epoch=epoch,
+        batch_size=batch_size,   
+        callbacks=[epoch_begin])
