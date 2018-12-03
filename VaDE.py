@@ -206,7 +206,7 @@ def load_pretrain_weights(vade,dataset,pretrain_weights=None):
     return vade
 #===================================
 def lr_decay():
-    if dataset == 'mnist' or dataset == 'coil20':
+    if args.dataset == 'mnist' or args.dataset == 'coil20':
         adam_nn.lr.set_value(floatX(max(adam_nn.lr.get_value()*decay_nn,0.0002)))
         adam_gmm.lr.set_value(floatX(max(adam_gmm.lr.get_value()*decay_gmm,0.0002)))
     else:
