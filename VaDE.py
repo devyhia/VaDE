@@ -26,6 +26,7 @@ import  theano.tensor as T
 import math
 from sklearn import mixture
 from sklearn.cluster import KMeans
+from sklearn.metrics import confusion_matrix
 from keras.models import model_from_json
 import argparse
 
@@ -43,15 +44,16 @@ def sampling(args):
 def cluster_acc(Y_pred, Y):
   from sklearn.utils.linear_assignment_ import linear_assignment
   assert Y_pred.size == Y.size
-  D = max(Y_pred.max(), Y.max())+1
+  D = int(max(Y_pred.max(), Y.max())+1)
   w = np.zeros((D,D), dtype=np.int64)
   for i in range(Y_pred.size):
-    w[Y_pred[i], Y[i]] += 1
+    w[int(Y_pred[i]),int(Y[i])] += 1
   ind = linear_assignment(w.max() - w)
   return sum([w[i,j] for i,j in ind])*1.0/Y_pred.size, w
              
 #==================================================
 def load_data(dataset):
+    global args
     path = 'dataset/'+dataset+'/'
     if dataset == 'mnist':
         path = path + 'mnist.pkl.gz'
@@ -74,11 +76,9 @@ def load_data(dataset):
         Y = np.concatenate((y_train,y_test))
 
     if dataset == 'coil20':
-        X = np.load(path+'coil20_features_28.npy')
-        X = X.astype('float32') / 255.
-        X = X.reshape((-1, np.prod(X.shape[1:])))
-        Y = np.load(path+'coil20_labels_28.npy')
         # import pdb; pdb.set_trace()
+        X = np.load(path+'coil20_features_{}.npy'.format(args.dimension))
+        Y = np.load(path+'coil20_labels_{}.npy'.format(args.dimension))
     
     if dataset == 'reuters10k':
         data=scio.loadmat(path+'reuters10k.mat')
@@ -100,15 +100,16 @@ def config_init(dataset):
     Return:
         (original_dim, epoch, n_centroid, lr_nn, lr_gmm, decay_n, decay_nn, decay_gmm, alpha, datatype)
     """
+    global args
     if dataset == 'coil20':
-        original_dim = 28 * 28
+        original_dim = args.dimension**2
         epoch = 3000
         n_centroid = 20
-        lr_nn = 0.002
-        lr_gmm = 0.002
+        lr_nn = 1e-2
+        lr_gmm = 1e-1
         decay_n = 10
-        decay_nn = 0.9
-        decay_gmm = 0.9
+        decay_nn = 0.9 # 0.9
+        decay_gmm = 1 # 0.95
         alpha = 1
         datatype = 'sigmoid'
         
@@ -232,12 +233,16 @@ def epochBegin(epoch):
     '''
     # import pdb; pdb.set_trace()
     gamma = gamma_output.predict(X,batch_size=batch_size)
-    acc=cluster_acc(np.argmax(gamma,axis=1),Y)
+    Y_pred = np.argmax(gamma,axis=1)
+    acc=cluster_acc(Y_pred, Y)
+    cf_matrix = confusion_matrix(Y, Y_pred)
     global accuracy
     accuracy+=[acc[0]]
-    if epoch>0 :
+    if epoch>=0 :
         #print ('acc_gmm_on_z:%0.8f'%acc_g[0])
         print ('acc_p_c_z:%0.8f'%acc[0])
+	print ('::::: confusion matrix :::::')
+	print (cf_matrix)
     if epoch==1 and args.dataset == 'har' and acc[0]<0.77:
         print ('=========== HAR dataset:bad init!Please run again! ============')
         sys.exit(0)
@@ -250,6 +255,7 @@ class EpochBegin(Callback):
 parser = argparse.ArgumentParser('VaDE Training')
 parser.add_argument('--dataset', default='mnist', choices=['mnist','reuters10k','har', 'coil20'])
 parser.add_argument('--pretrain-weights', default=None, type=str)
+parser.add_argument('--dimension', default=28, type=int)
 
 args = parser.parse_args()
 
